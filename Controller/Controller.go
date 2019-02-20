@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	"coen317/common"
 	"encoding/gob"
 	"flag"
 	"fmt"
@@ -10,6 +10,42 @@ import (
 	"path/filepath"
 )
 
+func getFile(name string) (*os.File, int64) {
+	path, err := filepath.Abs(name)
+	if err != nil {
+		panic(err)
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+
+	stat, err := file.Stat()
+	if err != nil {
+		panic(err)
+	}
+
+	return file, stat.Size()
+}
+
+func acceptClients(server net.Listener, numClients int) ([]net.Conn, []string) {
+	clients := make([]net.Conn, numClients)
+	addresses := make([]string, numClients)
+
+	for i := 0; i < numClients; i++ {
+		var err error
+		clients[i], err = server.Accept()
+		if err != nil {
+			panic(err)
+		}
+		addresses[i] = clients[i].RemoteAddr().String()
+		fmt.Printf("Client %v connected\n", addresses[i])
+	}
+
+	return clients, addresses
+}
+
 func main() {
 	// set up and parse command line arguments
 	argPort := flag.String("port", "", "listen port")
@@ -17,69 +53,58 @@ func main() {
 	argNumClients := flag.Int("clients", 0, "# clients")
 	flag.Parse()
 	if *argFileName == "" || *argNumClients == 0 || *argPort == "" {
-		// TODO these are required arguments
-		// TODO actually probably use a different args package cuz the builtin one sucks
 		fmt.Printf("Usage: %v -port <port> -file <file> -clients <clients>\n", os.Args[0])
 		return
 	}
 
-	// open the data file, get its size
-	relPath, err := filepath.Abs(*argFileName)
-	if err != nil {
-		panic(err)
-	}
-	file, err := os.Open(relPath)
-	if err != nil {
-		panic(err)
-	}
+	// open the file and get its size
+	file, size := getFile(*argFileName)
 	defer func() {
-		err = file.Close()
-		if err != nil {
+		if err := file.Close(); err != nil {
 			panic(err)
 		}
 	}()
-	fileinfo, err := file.Stat()
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("%v size: %v\n", *argFileName, fileinfo.Size())
+	fmt.Printf("%v size: %v\n", file.Name(), size)
 
-	// listen for and accept connections from all of the clients
-	// note their addresses
+	// start listening, defer closing the listen socket
 	server, err := net.Listen("tcp", ":"+*argPort)
 	if err != nil {
 		panic(err)
 	}
-	clients := make([]net.Conn, *argNumClients)
-	addresses := make([]string, *argNumClients)
-	for i := 0; i < len(clients); i++ {
-		clients[i], err = server.Accept()
+	defer func() {
+		err = server.Close()
 		if err != nil {
 			panic(err)
 		}
-		addresses[i] = clients[i].RemoteAddr().String()
-		fmt.Printf("%v\n", addresses[i])
-	}
+	}()
 
-	// encode the array of addresses
-	buffer := new(bytes.Buffer)
-	err = gob.NewEncoder(buffer).Encode(addresses)
-	if err != nil {
-		panic(err)
-	}
+	// accept connections from all clients
+	clients, addresses := acceptClients(server, *argNumClients)
 
-	// send the array of client addresses to each client
+	// for each client
+	// - defer closing the connection
+	// - send client info
+	// - send a piece of the file
 	for i := 0; i < len(clients); i++ {
-		_, err := clients[i].Write(buffer.Bytes())
-		if err != nil {
+		// defer closing the connection
+		defer func(client net.Conn) {
+			err = client.Close()
+			if err != nil {
+				panic(err)
+			}
+		}(clients[i])
+
+		// send client info TODO compute the size correctly
+		encoder := gob.NewEncoder(clients[i])
+		if err := encoder.Encode(common.ClientInfo{Id: i, Addresses: addresses, Size: size}); err != nil {
 			panic(err)
 		}
-	}
 
-	// clean up
-	for _, client := range clients {
-		err = client.Close()
-		if err != nil {
+		// send part of file TODO this sends the whole file at once right now
+		buffer := make([]byte, size)
+		_, _ = file.Read(buffer)
+		fmt.Printf("%v\n", buffer)
+		if err := encoder.Encode(buffer); err != nil {
 			panic(err)
 		}
 	}
