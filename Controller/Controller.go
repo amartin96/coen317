@@ -5,6 +5,8 @@ import (
 	"encoding/gob"
 	"flag"
 	"fmt"
+	"io"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -46,6 +48,30 @@ func acceptClients(server net.Listener, numClients int) ([]net.Conn, []string) {
 	return clients, addresses
 }
 
+func sendToClient(file io.Reader, conn io.Writer, info common.ClientInfo) {
+	encoder := gob.NewEncoder(conn)
+	if err := encoder.Encode(info); err != nil {
+		panic(err)
+	}
+
+	reader := io.LimitReader(file, info.Size)
+	buffer := make([]byte, common.BUFSIZE)
+	for {
+		n, err := reader.Read(buffer)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			panic(err)
+		}
+
+		fmt.Printf("sending %v\n", buffer[:n])
+
+		if err := encoder.Encode(buffer[:n]); err != nil {
+			panic(err)
+		}
+	}
+}
+
 func main() {
 	// set up and parse command line arguments
 	argPort := flag.String("port", "", "listen port")
@@ -56,56 +82,38 @@ func main() {
 		fmt.Printf("Usage: %v -port <port> -file <file> -clients <clients>\n", os.Args[0])
 		return
 	}
+	if math.Ceil(float64(*argNumClients)) != math.Floor(float64(*argNumClients)) {
+		fmt.Printf("Error: # clients must be a power of 2!\n")
+		return
+	}
 
 	// open the file and get its size
 	file, size := getFile(*argFileName)
-	defer func() {
-		if err := file.Close(); err != nil {
-			panic(err)
-		}
-	}()
-	fmt.Printf("%v size: %v\n", file.Name(), size)
+	defer common.Close(file)
+	chunkSize := size / int64(*argNumClients) // if this doesn't divide cleanly, then the last client has extra work
+	fmt.Printf("%v size: %v chunkSize: %v\n", file.Name(), size, chunkSize)
 
 	// start listening, defer closing the listen socket
 	server, err := net.Listen("tcp", ":"+*argPort)
 	if err != nil {
 		panic(err)
 	}
-	defer func() {
-		err = server.Close()
-		if err != nil {
-			panic(err)
-		}
-	}()
+	defer common.Close(server)
 
 	// accept connections from all clients
 	clients, addresses := acceptClients(server, *argNumClients)
+	//for _, client := range clients {
+	//	defer common.Close(client)
+	//}
 
-	// for each client
-	// - defer closing the connection
-	// - send client info
-	// - send a piece of the file
-	for i := 0; i < len(clients); i++ {
-		// defer closing the connection
-		defer func(client net.Conn) {
-			err = client.Close()
-			if err != nil {
-				panic(err)
-			}
-		}(clients[i])
-
-		// send client info TODO compute the size correctly
-		encoder := gob.NewEncoder(clients[i])
-		if err := encoder.Encode(common.ClientInfo{Id: i, Addresses: addresses, Size: size}); err != nil {
-			panic(err)
+	// send data to each client
+	for i, client := range clients {
+		clientDataSize := chunkSize
+		if i == len(clients)-1 {
+			clientDataSize = size - chunkSize*int64(len(clients)-1)
 		}
-
-		// send part of file TODO this sends the whole file at once right now
-		buffer := make([]byte, size)
-		_, _ = file.Read(buffer)
-		fmt.Printf("%v\n", buffer)
-		if err := encoder.Encode(buffer); err != nil {
-			panic(err)
-		}
+		fmt.Printf("chunkSize %v: %v\n", i, clientDataSize)
+		sendToClient(file, client, common.ClientInfo{Id: uint(i), Addresses: addresses, Size: clientDataSize})
+		common.Close(client)
 	}
 }
