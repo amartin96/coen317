@@ -32,67 +32,6 @@ func makeTempFile() *os.File {
 	return file
 }
 
-// receive the data to be sorted from the controller and write it to a file
-// TODO if the controller closes the connection, we can use EOF and eliminate the need to know the size beforehand
-func getData(decoder *gob.Decoder, file io.Writer, size int64) {
-	fmt.Printf("size: %v\n", size)
-
-	var buffer []byte
-	for size > 0 {
-		if err := decoder.Decode(&buffer); err != nil {
-			panic(err)
-		}
-
-		fmt.Printf("received %v\n", buffer)
-
-		if _, err := file.Write(buffer); err != nil {
-			panic(err)
-		}
-		size -= int64(len(buffer))
-	}
-}
-
-// send the contents of file to conn
-func sendData(file io.Reader, conn io.Writer) {
-	encoder := gob.NewEncoder(conn)
-	buffer := make([]byte, common.BUFSIZE)
-
-	for {
-		n, err := file.Read(buffer)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			panic(err)
-		}
-
-		fmt.Printf("sending %v\n", buffer[:n])
-
-		if err := encoder.Encode(buffer[:n]); err != nil {
-			panic(err)
-		}
-	}
-}
-
-// this differs from getData because the connection ends after the file is transmitted
-func recvData(conn io.Reader, file io.Writer) {
-	var buffer []byte
-	decoder := gob.NewDecoder(conn)
-
-	for {
-		if err := decoder.Decode(&buffer); err == io.EOF {
-			break
-		} else if err != nil {
-			panic(err)
-		}
-
-		fmt.Printf("received %v\n", buffer)
-
-		if _, err := file.Write(buffer); err != nil {
-			panic(err)
-		}
-	}
-}
-
 // While not done:
 //	- sort my data
 //	- am I sending or receiving?
@@ -122,7 +61,7 @@ func clientRoutine(file *os.File, id uint, addresses []string) {
 				if _, err := file.Seek(0, io.SeekStart); err != nil {
 					panic(err)
 				}
-				sendData(file, conn)
+				common.SendData(file, gob.NewEncoder(conn))
 			}()
 
 			// once we send our data to another host, we're done
@@ -149,7 +88,7 @@ func clientRoutine(file *os.File, id uint, addresses []string) {
 				panic(err)
 			}
 
-			recvData(conn, file)
+			common.RecvData(gob.NewDecoder(conn), file)
 			// TODO merge
 		}()
 	}
@@ -163,7 +102,7 @@ func clientRoutine(file *os.File, id uint, addresses []string) {
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		panic(err)
 	}
-	sendData(file, conn)
+	common.SendData(file, gob.NewEncoder(conn))
 }
 
 func main() {
@@ -176,6 +115,7 @@ func main() {
 
 	// receive info from controller
 	id, addresses, size := getInfo(decoder)
+	_ = size
 
 	// create a file with a random name for temp storage
 	// defer closing and removing it
@@ -183,7 +123,8 @@ func main() {
 	defer common.CloseRemove(file)
 
 	// receive data from controller into file
-	getData(decoder, file, size)
+	//getData(decoder, file, size)
+	common.RecvData(decoder, file)
 
 	// do everything else
 	clientRoutine(file, id, addresses)

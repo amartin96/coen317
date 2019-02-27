@@ -56,21 +56,7 @@ func sendToClient(file io.Reader, conn io.Writer, info common.ClientInfo) {
 	}
 
 	reader := io.LimitReader(file, info.Size)
-	buffer := make([]byte, common.BUFSIZE)
-	for {
-		n, err := reader.Read(buffer)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			panic(err)
-		}
-
-		fmt.Printf("sending %v\n", buffer[:n])
-
-		if err := encoder.Encode(buffer[:n]); err != nil {
-			panic(err)
-		}
-	}
+	common.SendData(reader, encoder)
 }
 
 func main() {
@@ -131,5 +117,5 @@ func main() {
 		panic(err)
 	}
 	defer common.Close(outfile)
-	common.RecvData(conn, outfile)
+	common.RecvData(gob.NewDecoder(conn), outfile)
 }

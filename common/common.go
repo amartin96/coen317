@@ -30,9 +30,8 @@ func CloseRemove(file *os.File) {
 	}
 }
 
-func RecvData(conn io.Reader, file io.Writer) {
+func RecvData(decoder *gob.Decoder, file io.Writer) {
 	var buffer []byte
-	decoder := gob.NewDecoder(conn)
 
 	for {
 		if err := decoder.Decode(&buffer); err == io.EOF {
@@ -44,6 +43,25 @@ func RecvData(conn io.Reader, file io.Writer) {
 		fmt.Printf("received %v\n", buffer)
 
 		if _, err := file.Write(buffer); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func SendData(file io.Reader, encoder *gob.Encoder) {
+	buffer := make([]byte, BUFSIZE)
+
+	for {
+		n, err := file.Read(buffer)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			panic(err)
+		}
+
+		fmt.Printf("sending %v\n", buffer[:n])
+
+		if err := encoder.Encode(buffer[:n]); err != nil {
 			panic(err)
 		}
 	}
