@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func getFile(name string) (*os.File, int64) {
@@ -41,7 +42,7 @@ func acceptClients(server net.Listener, numClients int) ([]net.Conn, []string) {
 		if err != nil {
 			panic(err)
 		}
-		addresses[i] = clients[i].RemoteAddr().String()
+		addresses[i] = strings.Split(clients[i].RemoteAddr().String(), ":")[0]
 		fmt.Printf("Client %v connected\n", addresses[i])
 	}
 
@@ -102,18 +103,33 @@ func main() {
 
 	// accept connections from all clients
 	clients, addresses := acceptClients(server, *argNumClients)
-	//for _, client := range clients {
-	//	defer common.Close(client)
-	//}
 
 	// send data to each client
 	for i, client := range clients {
-		clientDataSize := chunkSize
-		if i == len(clients)-1 {
-			clientDataSize = size - chunkSize*int64(len(clients)-1)
-		}
-		fmt.Printf("chunkSize %v: %v\n", i, clientDataSize)
-		sendToClient(file, client, common.ClientInfo{Id: uint(i), Addresses: addresses, Size: clientDataSize})
-		common.Close(client)
+		// use a self-evaluating function literal so we can defer stuff
+		func() {
+			// defer closing the connection to the client
+			defer common.Close(client)
+
+			clientDataSize := chunkSize
+			if i == len(clients)-1 {
+				clientDataSize = size - chunkSize*int64(len(clients)-1)
+			}
+			fmt.Printf("chunkSize %v: %v\n", i, clientDataSize)
+			sendToClient(file, client, common.ClientInfo{Id: uint(i), Addresses: addresses, Size: clientDataSize})
+		}()
 	}
+
+	// receive the sorted data back from client 0
+	conn, err := server.Accept()
+	if err != nil {
+		panic(err)
+	}
+	defer common.Close(conn)
+	outfile, err := os.Create("out")
+	if err != nil {
+		panic(err)
+	}
+	defer common.Close(outfile)
+	common.RecvData(conn, outfile)
 }

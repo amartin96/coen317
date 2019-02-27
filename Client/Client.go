@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net"
 	"os"
+	"strconv"
+	"time"
 )
 
 const TEMPFILEPREFIX = "coen317"
@@ -30,6 +33,7 @@ func makeTempFile() *os.File {
 }
 
 // receive the data to be sorted from the controller and write it to a file
+// TODO if the controller closes the connection, we can use EOF and eliminate the need to know the size beforehand
 func getData(decoder *gob.Decoder, file io.Writer, size int64) {
 	fmt.Printf("size: %v\n", size)
 
@@ -54,20 +58,23 @@ func sendData(file io.Reader, conn io.Writer) {
 	buffer := make([]byte, common.BUFSIZE)
 
 	for {
-		if _, err := file.Read(buffer); err == io.EOF {
+		n, err := file.Read(buffer)
+		if err == io.EOF {
 			break
 		} else if err != nil {
 			panic(err)
 		}
 
-		if err := encoder.Encode(buffer); err != nil {
+		fmt.Printf("sending %v\n", buffer[:n])
+
+		if err := encoder.Encode(buffer[:n]); err != nil {
 			panic(err)
 		}
 	}
 }
 
 // this differs from getData because the connection ends after the file is transmitted
-func recvData(conn io.Reader, file io.Writer) error {
+func recvData(conn io.Reader, file io.Writer) {
 	var buffer []byte
 	decoder := gob.NewDecoder(conn)
 
@@ -75,15 +82,15 @@ func recvData(conn io.Reader, file io.Writer) error {
 		if err := decoder.Decode(&buffer); err == io.EOF {
 			break
 		} else if err != nil {
-			return err
+			panic(err)
 		}
+
+		fmt.Printf("received %v\n", buffer)
 
 		if _, err := file.Write(buffer); err != nil {
-			return err
+			panic(err)
 		}
 	}
-
-	return nil
 }
 
 // While not done:
@@ -95,48 +102,73 @@ func recvData(conn io.Reader, file io.Writer) error {
 //		receiving:
 //			- receive data
 //			- keep going
-func clientRoutine(file io.ReadWriter, id uint, addresses []string) {
+func clientRoutine(file *os.File, id uint, addresses []string) {
 	// TODO sort
 
-	for i := uint(1); ; i++ {
+	for i := uint(1); i <= uint(math.Log2(float64(len(addresses)))); i++ {
 
 		// if id mod 2^i != 0, send data to the next host
 		if id%(1<<i) != 0 {
-			conn, err := net.Dial("tcp", addresses[id-i])
-			if err != nil {
-				panic(err)
-			}
-			defer common.Close(conn) // this defer is ok, we return during this iteration of the loop
-			sendData(file, conn)
+			fmt.Printf("sending to %v\n", addresses[id-i]+":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id-i)))
+			time.Sleep(time.Second) // TODO figure something else out
+
+			// use a self-invoking function literal so we can defer
+			func() {
+				conn, err := net.Dial("tcp", addresses[id-i]+":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id-i)))
+				if err != nil {
+					panic(err)
+				}
+				defer common.Close(conn)
+				if _, err := file.Seek(0, io.SeekStart); err != nil {
+					panic(err)
+				}
+				sendData(file, conn)
+			}()
+
+			// once we send our data to another host, we're done
 			return
 		}
 
 		// otherwise, receive data from a host and merge it
-		// lots of ugly error handling because deferring here would be bad
-		server, err := net.Listen("tcp", ":"+common.PORT)
-		if err != nil {
-			panic(err)
-		}
+		// use a self-invoking function literal so we can defer
+		fmt.Printf("receiving on port %v\n", strconv.Itoa(common.CLIENT_PORT_BASE+int(id)))
+		func() {
+			server, err := net.Listen("tcp", ":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id)))
+			if err != nil {
+				panic(err)
+			}
+			defer common.Close(server)
 
-		conn, err := server.Accept()
-		if err != nil {
-			common.Close(server)
-			panic(err)
-		}
-		if err := recvData(conn, file); err != nil {
-			common.Close(conn)
-			common.Close(server)
-			panic(err)
-		}
-		common.Close(conn)
-		common.Close(server)
-		// TODO merge
+			conn, err := server.Accept()
+			if err != nil {
+				panic(err)
+			}
+			defer common.Close(conn)
+
+			if _, err := file.Seek(0, io.SeekEnd); err != nil {
+				panic(err)
+			}
+
+			recvData(conn, file)
+			// TODO merge
+		}()
 	}
+
+	// if execution makes it here, we are client 0 and everything has been merged
+	// send the complete results back to the controller
+	conn, err := net.Dial("tcp", "localhost:12345") // TODO get the actual controller address
+	if err != nil {
+		panic(err)
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		panic(err)
+	}
+	sendData(file, conn)
 }
 
 func main() {
 	// connect to the controller
-	conn, err := net.Dial("tcp", "localhost:"+common.PORT)
+	conn, err := net.Dial("tcp", "localhost:"+strconv.Itoa(common.CONTROLLER_PORT))
 	if err != nil {
 		panic(err)
 	}
@@ -144,7 +176,6 @@ func main() {
 
 	// receive info from controller
 	id, addresses, size := getInfo(decoder)
-	_, _ = id, addresses // TODO remove once referenced
 
 	// create a file with a random name for temp storage
 	// defer closing and removing it
@@ -155,5 +186,5 @@ func main() {
 	getData(decoder, file, size)
 
 	// do everything else
-	//clientRoutine(file, id, addresses)
+	clientRoutine(file, id, addresses)
 }
