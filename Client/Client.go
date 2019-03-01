@@ -6,25 +6,18 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net"
 	"os"
+	"strconv"
+	"time"
 )
 
 const TEMPFILEPREFIX = "coen317"
 
-// establish a TCP connection with the controller
-func connect(address string) net.Conn {
-	conn, err := net.Dial("tcp", address)
-	if err != nil {
-		panic(err)
-	}
-	return conn
-}
-
 // receive and decode a common.ClientInfo struct from the controller
-func getInfo(conn io.Reader) (int, []string, int64) {
+func getInfo(decoder *gob.Decoder) (uint, []string, int64) {
 	var info common.ClientInfo
-	decoder := gob.NewDecoder(conn)
 	if err := decoder.Decode(&info); err != nil {
 		panic(err)
 	}
@@ -39,43 +32,100 @@ func makeTempFile() *os.File {
 	return file
 }
 
-// receive the data to be sorted from the controller and write it to a file
-func getData(conn io.Reader, file io.Writer, size int64) {
-	var buffer []byte
-	decoder := gob.NewDecoder(conn)
-	for size > 0 {
-		if err := decoder.Decode(&buffer); err != nil {
-			panic(err)
+// While not done:
+//	- sort my data
+//	- am I sending or receiving?
+// 		sending:
+//			- send data
+//			- done
+//		receiving:
+//			- receive data
+//			- keep going
+func clientRoutine(file *os.File, id uint, addresses []string) {
+	// TODO sort
+
+	for i := uint(1); i <= uint(math.Log2(float64(len(addresses)))); i++ {
+
+		// if id mod 2^i != 0, send data to the next host
+		if id%(1<<i) != 0 {
+			fmt.Printf("sending to %v\n", addresses[id-i]+":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id-i)))
+			time.Sleep(time.Second) // TODO figure something else out
+
+			// use a self-invoking function literal so we can defer
+			func() {
+				conn, err := net.Dial("tcp", addresses[id-i]+":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id-i)))
+				if err != nil {
+					panic(err)
+				}
+				defer common.Close(conn)
+				if _, err := file.Seek(0, io.SeekStart); err != nil {
+					panic(err)
+				}
+				common.SendData(file, gob.NewEncoder(conn))
+			}()
+
+			// once we send our data to another host, we're done
+			return
 		}
-		if _, err := file.Write(buffer); err != nil {
-			panic(err)
-		}
-		size -= int64(len(buffer))
+
+		// otherwise, receive data from a host and merge it
+		// use a self-invoking function literal so we can defer
+		fmt.Printf("receiving on port %v\n", strconv.Itoa(common.CLIENT_PORT_BASE+int(id)))
+		func() {
+			server, err := net.Listen("tcp", ":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id)))
+			if err != nil {
+				panic(err)
+			}
+			defer common.Close(server)
+
+			conn, err := server.Accept()
+			if err != nil {
+				panic(err)
+			}
+			defer common.Close(conn)
+
+			if _, err := file.Seek(0, io.SeekEnd); err != nil {
+				panic(err)
+			}
+
+			common.RecvData(gob.NewDecoder(conn), file)
+			// TODO merge
+		}()
 	}
+
+	// if execution makes it here, we are client 0 and everything has been merged
+	// send the complete results back to the controller
+	conn, err := net.Dial("tcp", "localhost:12345") // TODO get the actual controller address
+	if err != nil {
+		panic(err)
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		panic(err)
+	}
+	common.SendData(file, gob.NewEncoder(conn))
 }
 
 func main() {
 	// connect to the controller
-	conn := connect("localhost:12345")
+	conn, err := net.Dial("tcp", "localhost:"+strconv.Itoa(common.CONTROLLER_PORT))
+	if err != nil {
+		panic(err)
+	}
+	decoder := gob.NewDecoder(conn)
 
-	id, addresses, size := getInfo(conn)
-	_ = id        // TODO remove once referenced
-	_ = addresses // TODO remove once referenced
-	_ = size      // TODO remove once referenced
+	// receive info from controller
+	id, addresses, size := getInfo(decoder)
+	_ = size
 
 	// create a file with a random name for temp storage
 	// defer closing and removing it
 	file := makeTempFile()
-	fmt.Printf("Created temp file %v\n", file.Name())
-	defer func() {
-		if err := file.Close(); err != nil {
-			panic(err)
-		}
-		if err := os.Remove(file.Name()); err != nil {
-			panic(err)
-		}
-		fmt.Printf("Removed temp file %v\n", file.Name())
-	}()
+	defer common.CloseRemove(file)
 
-	getData(conn, file, size)
+	// receive data from controller into file
+	//getData(decoder, file, size)
+	common.RecvData(decoder, file)
+
+	// do everything else
+	clientRoutine(file, id, addresses)
 }
