@@ -1,6 +1,7 @@
 package main
 
 import (
+	"coen317/Merge"
 	"coen317/common"
 	"encoding/gob"
 	"fmt"
@@ -42,7 +43,7 @@ func makeTempFile() *os.File {
 //			- receive data
 //			- keep going
 func clientRoutine(file *os.File, id uint, addresses []string) {
-	// TODO sort
+	Merge.Sorter(file.Name())
 
 	for i := uint(1); i <= uint(math.Log2(float64(len(addresses)))); i++ {
 
@@ -88,8 +89,39 @@ func clientRoutine(file *os.File, id uint, addresses []string) {
 				panic(err)
 			}
 
+			// get file size before receiving
+			stat, err := file.Stat()
+			if err != nil {
+				panic(err)
+			}
+			size1 := stat.Size()
+
 			common.RecvData(gob.NewDecoder(conn), file)
-			// TODO merge
+
+			// get file size after receiving, calculate difference -> size of 2nd half
+			stat, err = file.Stat()
+			if err != nil {
+				panic(err)
+			}
+			size2 := stat.Size() - size1
+
+			if _, err := file.Seek(0, io.SeekStart); err != nil {
+				panic(err)
+			}
+			file2, err := os.Open(file.Name())
+			if err != nil {
+				panic(err)
+			}
+			defer common.Close(file2)
+			if _, err := file.Seek(size1, io.SeekStart); err != nil {
+				panic(err)
+			}
+			file3, err := os.OpenFile(file.Name(), os.O_WRONLY, 0600)
+			if err != nil {
+				panic(err)
+			}
+			defer common.Close(file3)
+			Merge.Merge(file, file2, size1, size2, file3)
 		}()
 	}
 

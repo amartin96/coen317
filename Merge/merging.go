@@ -1,4 +1,4 @@
-package merge
+package Merge
 
 import (
 	"encoding/binary"
@@ -379,8 +379,8 @@ func checkError(err error) {
 	}
 }
 
-func main() {
-	RandomIntFile(7,"ints.txt",10000)
-	Sorter("ints.txt")
-	PrintBinaryIntFile("ints.txt")
-}
+//func main() {
+//	RandomIntFile(7,"ints.txt",10000)
+//	Sorter("ints.txt")
+//	PrintBinaryIntFile("ints.txt")
+//}

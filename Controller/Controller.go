@@ -1,6 +1,7 @@
 package main
 
 import (
+	"coen317/Merge"
 	"coen317/common"
 	"encoding/gob"
 	"flag"
@@ -74,6 +75,9 @@ func main() {
 		return
 	}
 
+	// TODO just for testing
+	Merge.RandomIntFile(50, *argFileName, 1000)
+
 	// open the file and get its size
 	file, size := getFile(*argFileName)
 	defer common.Close(file)
@@ -118,4 +122,6 @@ func main() {
 	}
 	defer common.Close(outfile)
 	common.RecvData(gob.NewDecoder(conn), outfile)
+
+	Merge.PrintBinaryIntFile(outfile.Name())
 }
