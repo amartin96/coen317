@@ -44,7 +44,7 @@ func acceptClients(server net.Listener, numClients int) ([]net.Conn, []string) {
 			panic(err)
 		}
 		addresses[i] = strings.Split(clients[i].RemoteAddr().String(), ":")[0]
-		fmt.Printf("Client %v connected\n", addresses[i])
+		fmt.Printf("Client %v connected\n", clients[i].RemoteAddr().String())
 	}
 
 	return clients, addresses
@@ -76,12 +76,12 @@ func main() {
 	}
 
 	// TODO just for testing
-	Merge.RandomIntFile(50, *argFileName, 1000)
+	Merge.RandomIntFile(51, *argFileName, 1000)
 
 	// open the file and get its size
 	file, size := getFile(*argFileName)
 	defer common.Close(file)
-	chunkSize := size / int64(*argNumClients) // if this doesn't divide cleanly, then the last client has extra work
+	chunkSize := size / int64(*argNumClients) / 4 * 4 // if this doesn't divide cleanly, then the last client has extra work
 	fmt.Printf("%v size: %v chunkSize: %v\n", file.Name(), size, chunkSize)
 
 	// start listening, defer closing the listen socket
