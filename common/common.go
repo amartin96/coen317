@@ -7,7 +7,6 @@ import (
 	"os"
 )
 
-const CONTROLLER_PORT = 12345
 const CLIENT_PORT_BASE = 12346
 const BUFSIZE = 32
 

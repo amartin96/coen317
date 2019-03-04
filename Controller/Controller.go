@@ -11,7 +11,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 func getFile(name string) (*os.File, int64) {
@@ -43,7 +42,7 @@ func acceptClients(server net.Listener, numClients int) ([]net.Conn, []string) {
 		if err != nil {
 			panic(err)
 		}
-		addresses[i] = strings.Split(clients[i].RemoteAddr().String(), ":")[0]
+		addresses[i] = clients[i].RemoteAddr().(*net.TCPAddr).IP.String()
 		fmt.Printf("Client %v connected\n", clients[i].RemoteAddr().String())
 	}
 
@@ -79,7 +78,7 @@ func main() {
 	}
 
 	// TODO just for testing
-	Merge.RandomIntFile(17, *argFileName, 255)
+	Merge.RandomIntFile(101, *argFileName, 255)
 	fmt.Printf("Generated file:\n")
 	Merge.PrintBinaryIntFile(*argFileName)
 
@@ -87,17 +86,17 @@ func main() {
 	file, size := getFile(*argFileName)
 	defer common.Close(file)
 	chunkSize := size / int64(*argNumClients) / 4 * 4 // if this doesn't divide cleanly, then the last client has extra work
-	fmt.Printf("%v size: %v chunkSize: %v\n", file.Name(), size, chunkSize)
+	fmt.Printf("%v size: %v clientDataSize: %v\n", file.Name(), size, chunkSize)
 
 	// start listening, defer closing the listen socket
-	server, err := net.Listen("tcp", ":"+*argPort)
+	listener, err := net.Listen("tcp", ":"+*argPort)
 	if err != nil {
 		panic(err)
 	}
-	defer common.Close(server)
+	defer common.Close(listener)
 
 	// accept connections from all clients
-	clients, addresses := acceptClients(server, *argNumClients)
+	clients, addresses := acceptClients(listener, *argNumClients)
 
 	// send data to each client
 	for i, client := range clients {
@@ -116,7 +115,7 @@ func main() {
 	}
 
 	// receive the sorted data back from client 0
-	conn, err := server.Accept()
+	conn, err := listener.Accept()
 	if err != nil {
 		panic(err)
 	}

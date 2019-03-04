@@ -12,7 +12,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"time"
 )
 
 const TEMPFILEPREFIX = "coen317"
@@ -54,19 +53,23 @@ func clientRoutine(file *os.File, id uint, addresses []string) {
 
 		// if id mod 2^i != 0, send data to the next host
 		if id%(1<<i) != 0 {
-			time.Sleep(time.Second) // TODO figure something else out
-
 			// use a self-invoking function literal so we can defer
 			func() {
-				conn, err := net.Dial("tcp", addresses[id-i]+":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id-i)))
-				if err != nil {
-					panic(err)
+				var conn net.Conn
+				for {
+					var err error
+					conn, err = net.Dial("tcp", addresses[id-i]+":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id-i)))
+					if err == nil {
+						break
+					}
+					fmt.Println(err)
+					fmt.Printf("Retrying...\n")
 				}
 				defer common.Close(conn)
 				if _, err := file.Seek(0, io.SeekStart); err != nil {
 					panic(err)
 				}
-				fmt.Printf("Sending to %v\n", addresses[id-i]+":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id-i)))
+				fmt.Printf("Sending to %v\n", conn.RemoteAddr().String())
 				common.SendData(file, gob.NewEncoder(conn))
 				fmt.Printf("\n")
 			}()
