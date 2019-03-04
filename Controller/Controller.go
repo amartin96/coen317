@@ -79,7 +79,9 @@ func main() {
 	}
 
 	// TODO just for testing
-	Merge.RandomIntFile(3, *argFileName, 255)
+	Merge.RandomIntFile(17, *argFileName, 255)
+	fmt.Printf("Generated file:\n")
+	Merge.PrintBinaryIntFile(*argFileName)
 
 	// open the file and get its size
 	file, size := getFile(*argFileName)

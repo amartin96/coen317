@@ -123,7 +123,7 @@ func clientRoutine(file *os.File, id uint, addresses []string) {
 				panic(err)
 			}
 			defer common.Close(file2)
-			if _, err := file.Seek(size1, io.SeekStart); err != nil {
+			if _, err := file2.Seek(size1, io.SeekStart); err != nil {
 				panic(err)
 			}
 			file3, err := os.OpenFile(file.Name(), os.O_WRONLY, 0600)
