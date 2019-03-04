@@ -44,7 +44,11 @@ func makeTempFile() *os.File {
 //			- receive data
 //			- keep going
 func clientRoutine(file *os.File, id uint, addresses []string) {
+	fmt.Printf("Sorting...\n")
 	Merge.Sorter(file.Name())
+	fmt.Printf("Sorted file:\n")
+	Merge.PrintBinaryIntFile(file.Name())
+	fmt.Printf("\n")
 
 	for i := uint(1); i <= uint(math.Log2(float64(len(addresses)))); i++ {
 
@@ -100,6 +104,8 @@ func clientRoutine(file *os.File, id uint, addresses []string) {
 			// receive
 			fmt.Printf("Receiving on port %v\n", strconv.Itoa(common.CLIENT_PORT_BASE+int(id)))
 			common.RecvData(gob.NewDecoder(conn), file)
+			fmt.Printf("\nReceived file:\n")
+			Merge.PrintBinaryIntFile(file.Name())
 			fmt.Printf("\n")
 
 			// get file size after receiving, calculate difference -> size of 2nd half
@@ -129,6 +135,8 @@ func clientRoutine(file *os.File, id uint, addresses []string) {
 			// merge what we have with what we just received
 			fmt.Printf("Merging...\tsize1: %v\tsize2: %v\n", size1, size2)
 			Merge.Merge(file, file2, size1, size2, file3)
+			fmt.Printf("Merged file:\n")
+			Merge.PrintBinaryIntFile(file.Name())
 		}()
 		fmt.Printf("\n")
 	}
@@ -175,6 +183,8 @@ func main() {
 	// receive data from controller into file
 	fmt.Printf("Receiving from controller...\n")
 	common.RecvData(decoder, file)
+	fmt.Printf("\nFile:\n")
+	Merge.PrintBinaryIntFile(file.Name())
 	fmt.Printf("\n")
 
 	// do everything else

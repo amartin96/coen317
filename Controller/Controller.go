@@ -47,6 +47,8 @@ func acceptClients(server net.Listener, numClients int) ([]net.Conn, []string) {
 		fmt.Printf("Client %v connected\n", clients[i].RemoteAddr().String())
 	}
 
+	fmt.Printf("\n")
+
 	return clients, addresses
 }
 
@@ -58,6 +60,7 @@ func sendToClient(file io.Reader, conn io.Writer, info common.ClientInfo) {
 
 	reader := io.LimitReader(file, info.Size)
 	common.SendData(reader, encoder)
+	fmt.Printf("\n")
 }
 
 func main() {
@@ -76,7 +79,7 @@ func main() {
 	}
 
 	// TODO just for testing
-	Merge.RandomIntFile(51, *argFileName, 1000)
+	Merge.RandomIntFile(3, *argFileName, 255)
 
 	// open the file and get its size
 	file, size := getFile(*argFileName)
@@ -105,7 +108,7 @@ func main() {
 			if i == len(clients)-1 {
 				clientDataSize = size - chunkSize*int64(len(clients)-1)
 			}
-			fmt.Printf("chunkSize %v: %v\n", i, clientDataSize)
+			fmt.Printf("clientDataSize %v: %v\n", i, clientDataSize)
 			sendToClient(file, client, common.ClientInfo{Id: uint(i), Addresses: addresses, Size: clientDataSize})
 		}()
 	}
@@ -122,6 +125,8 @@ func main() {
 	}
 	defer common.Close(outfile)
 	common.RecvData(gob.NewDecoder(conn), outfile)
+	fmt.Printf("\n")
 
+	fmt.Printf("Sorted file:\n")
 	Merge.PrintBinaryIntFile(outfile.Name())
 }
