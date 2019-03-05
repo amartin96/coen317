@@ -9,7 +9,7 @@ import (
 )
 
 const CLIENT_PORT_BASE = 12346
-const BUFSIZE = 32
+const BUFSIZE = 1024
 
 type ClientInfo struct {
 	Id        uint

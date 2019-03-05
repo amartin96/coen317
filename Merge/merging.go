@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const maxMemory = 32
+const maxMemory = 1024
 
 // sort a file of integers on machines with maximum memory equal to maxMemory
 func Sorter(filename string) {
@@ -25,7 +25,7 @@ func Sorter(filename string) {
 	checkError(err)
 	fileSize := fInfo.Size()
 	var blockSizeBinary int64 = maxMemory
-	var blockSizeInt int64 = maxMemory/4
+	var blockSizeInt int64 = maxMemory / 4
 
 	// perform quicksort on blocks of the maximum memory size
 	buffer := make([]int32, blockSizeInt)
@@ -37,13 +37,13 @@ func Sorter(filename string) {
 		}
 
 		// get current position of file pointer
-		f1Pos, err := f1.Seek(0,1)
+		f1Pos, err := f1.Seek(0, 1)
 		checkError(err)
 
 		// shrink buffer if need be
-		if(fileSize - bytesRead) < blockSizeBinary {
+		if (fileSize - bytesRead) < blockSizeBinary {
 			blockSizeBinary = fileSize - bytesRead
-			blockSizeInt = blockSizeBinary/4
+			blockSizeInt = blockSizeBinary / 4
 			buffer = buffer[0:blockSizeInt]
 		}
 
@@ -71,15 +71,15 @@ func Sorter(filename string) {
 	var block1Size int64
 	var block2Size int64
 	for blockSizeBinary < fileSize {
-		blockCount = fileSize/blockSizeBinary
+		blockCount = fileSize / blockSizeBinary
 		block1Size = blockSizeBinary
 		block2Size = blockSizeBinary
 		curBlock = 0
-		_, err = f1.Seek(0,0)
+		_, err = f1.Seek(0, 0)
 		checkError(err)
-		_, err = f2.Seek(blockSizeBinary,0)
+		_, err = f2.Seek(blockSizeBinary, 0)
 		checkError(err)
-		_, err = f3.Seek(0,0)
+		_, err = f3.Seek(0, 0)
 		checkError(err)
 		for curBlock < blockCount {
 			// get limit readers of current blockSize
@@ -87,10 +87,10 @@ func Sorter(filename string) {
 			limitR2 := io.LimitReader(f2, blockSizeBinary)
 
 			// block1 will be shorter than normal
-			if fileSize - (curBlock * blockSizeBinary) < blockSizeBinary {
+			if fileSize-(curBlock*blockSizeBinary) < blockSizeBinary {
 				block1Size = fileSize - (curBlock * blockSizeBinary)
 				block2Size = 0
-			} else if fileSize - ((curBlock + 1) * blockSizeBinary) < blockSizeBinary {
+			} else if fileSize-((curBlock+1)*blockSizeBinary) < blockSizeBinary {
 				block2Size = fileSize - ((curBlock + 1) * blockSizeBinary)
 			}
 
@@ -98,9 +98,9 @@ func Sorter(filename string) {
 			Merge(limitR1, limitR2, block1Size, block2Size, f3)
 
 			// seek file pointers to be point at next blocks to be merged
-			_,err := f1.Seek(blockSizeBinary,1)
+			_, err := f1.Seek(blockSizeBinary, 1)
 			checkError(err)
-			_,err = f2.Seek(blockSizeBinary, 1)
+			_, err = f2.Seek(blockSizeBinary, 1)
 			checkError(err)
 
 			// progress current block to next two blocks to be merged
@@ -111,15 +111,14 @@ func Sorter(filename string) {
 	}
 }
 
-
 // perform actual merging of blocks
 func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) {
 	// buffers for reading in the binary
-	buffer1SizeInt := maxMemory/8
-	buffer1SizeBinary := maxMemory/2
-	buffer2SizeInt := maxMemory/8
-	buffer2SizeBinary := maxMemory/2
-	sortedSizeInt := maxMemory/4
+	buffer1SizeInt := maxMemory / 8
+	buffer1SizeBinary := maxMemory / 2
+	buffer2SizeInt := maxMemory / 8
+	buffer2SizeBinary := maxMemory / 2
+	sortedSizeInt := maxMemory / 4
 	sortedSizeBinary := maxMemory
 	buffer1 := make([]int32, buffer1SizeInt)
 	buffer2 := make([]int32, buffer2SizeInt)
@@ -134,18 +133,18 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 	var r1BytesRead int64 = 0
 	var r2BytesRead int64 = 0
 
-	if r1BytesRead != r1Size && int(r1Size - r1BytesRead) < buffer1SizeBinary {
+	if r1BytesRead != r1Size && int(r1Size-r1BytesRead) < buffer1SizeBinary {
 		buffer1SizeBinary = int(r1Size - r1BytesRead)
-		buffer1SizeInt = buffer1SizeBinary/4
+		buffer1SizeInt = buffer1SizeBinary / 4
 		buffer1 = buffer1[0:buffer1SizeInt]
 	}
 	err = binary.Read(r1, binary.BigEndian, buffer1)
 	checkError(err)
 	r1BytesRead += int64(buffer1SizeBinary)
 
-	if r2BytesRead != r2Size && int(r2Size - r2BytesRead) < buffer2SizeBinary {
+	if r2BytesRead != r2Size && int(r2Size-r2BytesRead) < buffer2SizeBinary {
 		buffer2SizeBinary = int(r2Size - r2BytesRead)
-		buffer2SizeInt = buffer2SizeBinary/4
+		buffer2SizeInt = buffer2SizeBinary / 4
 		buffer2 = buffer2[0:buffer2SizeInt]
 	}
 	err = binary.Read(r2, binary.BigEndian, buffer2)
@@ -159,14 +158,14 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 			if r1BytesRead == r1Size {
 				break
 			}
-			if int(r1Size - r1BytesRead) < buffer1SizeBinary {
+			if int(r1Size-r1BytesRead) < buffer1SizeBinary {
 				buffer1SizeBinary = int(r1Size - r1BytesRead)
-				buffer1SizeInt = buffer1SizeBinary/4
+				buffer1SizeInt = buffer1SizeBinary / 4
 				buffer1 = buffer1[0:buffer1SizeInt]
 			}
 			err := binary.Read(r1, binary.BigEndian, buffer1)
 			if err != nil {
-				break;
+				break
 			}
 			r1BytesRead += int64(buffer1SizeBinary)
 			buffer1Index = 0
@@ -174,9 +173,9 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 			if r2BytesRead == r2Size {
 				break
 			}
-			if int(r2Size - r2BytesRead) < buffer2SizeBinary {
+			if int(r2Size-r2BytesRead) < buffer2SizeBinary {
 				buffer2SizeBinary = int(r2Size - r2BytesRead)
-				buffer2SizeInt = buffer2SizeBinary/4
+				buffer2SizeInt = buffer2SizeBinary / 4
 				buffer2 = buffer2[0:buffer2SizeInt]
 			}
 			err := binary.Read(r2, binary.BigEndian, buffer2)
@@ -197,13 +196,12 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 		}
 
 		// write sorted block to file
-		if sortedIndex == 8 {
+		if sortedIndex == sortedSizeInt {
 			err = binary.Write(tempFile, binary.BigEndian, sorted)
 			checkError(err)
 			sortedIndex = 0
 		}
 	}
-
 
 	// account for remaining block 1 elements
 	for {
@@ -212,9 +210,9 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 			if r1BytesRead == r1Size {
 				break
 			}
-			if int(r1Size - r1BytesRead) < buffer1SizeBinary {
+			if int(r1Size-r1BytesRead) < buffer1SizeBinary {
 				buffer1SizeBinary = int(r1Size - r1BytesRead)
-				buffer1SizeInt = buffer1SizeBinary/4
+				buffer1SizeInt = buffer1SizeBinary / 4
 				buffer1 = buffer1[0:buffer1SizeInt]
 			}
 			err := binary.Read(r1, binary.BigEndian, buffer1)
@@ -228,7 +226,7 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 		sortedIndex++
 
 		// write sorted block to file
-		if sortedIndex == 8 {
+		if sortedIndex == sortedSizeInt {
 			err = binary.Write(tempFile, binary.BigEndian, sorted)
 			checkError(err)
 			sortedIndex = 0
@@ -242,9 +240,9 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 			if r2BytesRead == r2Size {
 				break
 			}
-			if int(r2Size - r2BytesRead) < buffer2SizeBinary {
+			if int(r2Size-r2BytesRead) < buffer2SizeBinary {
 				buffer2SizeBinary = int(r2Size - r2BytesRead)
-				buffer2SizeInt = buffer2SizeBinary/4
+				buffer2SizeInt = buffer2SizeBinary / 4
 				buffer2 = buffer2[0:buffer2SizeInt]
 			}
 			err := binary.Read(r2, binary.BigEndian, buffer2)
@@ -257,7 +255,7 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 		sortedIndex++
 
 		// write sorted block to file
-		if sortedIndex == 8 {
+		if sortedIndex == sortedSizeInt {
 			err = binary.Write(tempFile, binary.BigEndian, sorted)
 			checkError(err)
 			sortedIndex = 0
@@ -271,7 +269,7 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 	}
 
 	// move temporary file back to the beginning
-	_, err = tempFile.Seek(0,0)
+	_, err = tempFile.Seek(0, 0)
 	checkError(err)
 	tempFileInfo, _ := tempFile.Stat()
 	tempFileSize := tempFileInfo.Size()
@@ -280,9 +278,9 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 		if tempBytesRead == tempFileSize {
 			break
 		}
-		if int(tempFileSize-tempBytesRead) <  sortedSizeBinary {
-			sortedSizeBinary = int(tempFileSize-tempBytesRead)
-			sortedSizeInt = sortedSizeBinary/4
+		if int(tempFileSize-tempBytesRead) < sortedSizeBinary {
+			sortedSizeBinary = int(tempFileSize - tempBytesRead)
+			sortedSizeInt = sortedSizeBinary / 4
 			sorted = sorted[0:sortedSizeInt]
 		}
 		err := binary.Read(tempFile, binary.BigEndian, sorted)
@@ -354,15 +352,15 @@ func PrintBinaryIntFile(filename string) {
 	buffer := make([]int32, bufferSize/4)
 	if (fileSize - bytesRead) < bufferSize {
 		bufferSize = fileSize - bytesRead
-		buffer =  buffer[0:bufferSize/4]
+		buffer = buffer[0 : bufferSize/4]
 	}
 	err = binary.Read(f1, binary.BigEndian, buffer)
 	bytesRead += bufferSize
 	fmt.Println(buffer)
-	for  bytesRead != fileSize {
+	for bytesRead != fileSize {
 		if (fileSize - bytesRead) < bufferSize {
 			bufferSize = fileSize - bytesRead
-			buffer =  buffer[0:bufferSize/4]
+			buffer = buffer[0 : bufferSize/4]
 		}
 		err = binary.Read(f1, binary.BigEndian, buffer)
 		fmt.Println(buffer)
@@ -371,7 +369,6 @@ func PrintBinaryIntFile(filename string) {
 	err = f1.Close()
 	checkError(err)
 }
-
 
 func checkError(err error) {
 	if err != nil {
