@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+	"net"
 	"os"
 )
 
@@ -12,8 +13,7 @@ const BUFSIZE = 32
 
 type ClientInfo struct {
 	Id        uint
-	Addresses []string
-	Size      int64
+	Addresses []net.IP
 }
 
 func Close(closer io.Closer) {

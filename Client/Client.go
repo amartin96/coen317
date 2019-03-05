@@ -18,12 +18,12 @@ import (
 const TEMPFILEPREFIX = "coen317"
 
 // receive and decode a common.ClientInfo struct from the controller
-func getInfo(decoder *gob.Decoder) (uint, []string, int64) {
+func getInfo(decoder *gob.Decoder) (uint, []net.IP) {
 	var info common.ClientInfo
 	if err := decoder.Decode(&info); err != nil {
 		panic(err)
 	}
-	return info.Id, info.Addresses, info.Size
+	return info.Id, info.Addresses
 }
 
 func makeTempFile() *os.File {
@@ -43,7 +43,7 @@ func makeTempFile() *os.File {
 //		receiving:
 //			- receive data
 //			- keep going
-func clientRoutine(file *os.File, id uint, addresses []string) {
+func clientRoutine(file *os.File, id uint, addresses []net.IP) {
 	fmt.Printf("Sorting...\n")
 	Merge.Sorter(file.Name())
 	fmt.Printf("Sorted file:\n")
@@ -56,7 +56,7 @@ func clientRoutine(file *os.File, id uint, addresses []string) {
 		if id%(1<<i) != 0 {
 			// use a self-invoking function literal so we can defer
 			func() {
-				addr := net.TCPAddr{IP: net.ParseIP(addresses[id-i]), Port: common.CLIENT_PORT_BASE + int(id-i)}
+				addr := net.TCPAddr{IP: addresses[id-i], Port: common.CLIENT_PORT_BASE + int(id-i)}
 
 				var conn net.Conn
 				for {
@@ -180,8 +180,7 @@ func main() {
 	decoder := gob.NewDecoder(conn)
 
 	// receive info from controller
-	id, addresses, size := getInfo(decoder)
-	_ = size
+	id, addresses := getInfo(decoder)
 
 	// create a file with a random name for temp storage
 	// defer closing and removing it

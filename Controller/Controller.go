@@ -32,9 +32,9 @@ func getFile(name string) (*os.File, int64) {
 	return file, stat.Size()
 }
 
-func acceptClients(server net.Listener, numClients int) ([]net.Conn, []string) {
+func acceptClients(server net.Listener, numClients int) ([]net.Conn, []net.IP) {
 	clients := make([]net.Conn, numClients)
-	addresses := make([]string, numClients)
+	addresses := make([]net.IP, numClients)
 
 	for i := 0; i < numClients; i++ {
 		var err error
@@ -42,7 +42,7 @@ func acceptClients(server net.Listener, numClients int) ([]net.Conn, []string) {
 		if err != nil {
 			panic(err)
 		}
-		addresses[i] = clients[i].RemoteAddr().(*net.TCPAddr).IP.String()
+		addresses[i] = clients[i].RemoteAddr().(*net.TCPAddr).IP
 		fmt.Printf("Client %v connected\n", clients[i].RemoteAddr().String())
 	}
 
@@ -51,13 +51,13 @@ func acceptClients(server net.Listener, numClients int) ([]net.Conn, []string) {
 	return clients, addresses
 }
 
-func sendToClient(file io.Reader, conn io.Writer, info common.ClientInfo) {
+func sendToClient(file io.Reader, conn io.Writer, info common.ClientInfo, size int64) {
 	encoder := gob.NewEncoder(conn)
 	if err := encoder.Encode(info); err != nil {
 		panic(err)
 	}
 
-	reader := io.LimitReader(file, info.Size)
+	reader := io.LimitReader(file, size)
 	common.SendData(reader, encoder)
 	fmt.Printf("\n")
 }
@@ -110,7 +110,7 @@ func main() {
 				clientDataSize = size - chunkSize*int64(len(clients)-1)
 			}
 			fmt.Printf("clientDataSize %v: %v\n", i, clientDataSize)
-			sendToClient(file, client, common.ClientInfo{Id: uint(i), Addresses: addresses, Size: clientDataSize})
+			sendToClient(file, client, common.ClientInfo{Id: uint(i), Addresses: addresses}, clientDataSize)
 		}()
 	}
 
