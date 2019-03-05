@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"net"
 	"os"
 	"strconv"
@@ -17,21 +16,17 @@ import (
 
 const TEMPFILEPREFIX = "coen317"
 
-// receive and decode a common.ClientInfo struct from the controller
-func getInfo(decoder *gob.Decoder) (uint, []net.IP) {
-	var info common.ClientInfo
-	if err := decoder.Decode(&info); err != nil {
-		panic(err)
+// computes: y = floor(log2(x))
+func intlog2(x int) uint {
+	y := uint(0)
+	for {
+		x = x >> 1
+		if x == 0 {
+			break
+		}
+		y++
 	}
-	return info.Id, info.Addresses
-}
-
-func makeTempFile() *os.File {
-	file, err := ioutil.TempFile("", TEMPFILEPREFIX)
-	if err != nil {
-		panic(err)
-	}
-	return file
+	return y
 }
 
 // While not done:
@@ -42,6 +37,7 @@ func makeTempFile() *os.File {
 //			- done
 //		receiving:
 //			- receive data
+//			- merge
 //			- keep going
 func clientRoutine(file *os.File, id uint, addresses []net.IP) {
 	fmt.Printf("Sorting...\n")
@@ -50,7 +46,7 @@ func clientRoutine(file *os.File, id uint, addresses []net.IP) {
 	Merge.PrintBinaryIntFile(file.Name())
 	fmt.Printf("\n")
 
-	for i := uint(1); i <= uint(math.Log2(float64(len(addresses)))); i++ {
+	for i := uint(1); i <= intlog2(len(addresses)); i++ {
 
 		// if id mod 2^i != 0, send data to the next host
 		if id%(1<<i) != 0 {
@@ -61,7 +57,6 @@ func clientRoutine(file *os.File, id uint, addresses []net.IP) {
 				var conn net.Conn
 				for {
 					var err error
-					//conn, err = net.Dial("tcp", addresses[id-i]+":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id-i)))
 					conn, err = net.DialTCP("tcp", nil, &addr)
 					if err == nil {
 						break
@@ -165,26 +160,30 @@ func clientRoutine(file *os.File, id uint, addresses []net.IP) {
 
 func main() {
 	// set up, parse, and validate args
-	var argControllerAddr string
-	flag.StringVar(&argControllerAddr, "controller", "", "controller address")
+	var args struct {
+		BasePort       int
+		ControllerAddr string
+	}
+	flag.IntVar(&args.BasePort, "base_port", 0, "client port = base port + client id")
+	flag.StringVar(&args.ControllerAddr, "controller", "", "controller address")
 	flag.Parse()
-	if argControllerAddr == "" {
-		fmt.Printf("Usage: %v -controller <controller address>\n", os.Args[0])
+	if args.BasePort == 0 || args.ControllerAddr == "" {
+		fmt.Printf("Usage: %v -base_port <base port> -controller <controller address>\n", os.Args[0])
 	}
 
 	// connect to the controller
-	conn, err := net.Dial("tcp", argControllerAddr)
-	if err != nil {
-		panic(err)
-	}
+	conn, err := net.Dial("tcp", args.ControllerAddr)
+	common.PanicOnError(err)
 	decoder := gob.NewDecoder(conn)
 
 	// receive info from controller
-	id, addresses := getInfo(decoder)
+	var info common.ClientInfo
+	common.PanicOnError(decoder.Decode(&info))
 
 	// create a file with a random name for temp storage
 	// defer closing and removing it
-	file := makeTempFile()
+	file, err := ioutil.TempFile("", TEMPFILEPREFIX)
+	common.PanicOnError(err)
 	defer common.CloseRemove(file)
 
 	// receive data from controller into file
@@ -195,5 +194,5 @@ func main() {
 	fmt.Printf("\n")
 
 	// do everything else
-	clientRoutine(file, id, addresses)
+	clientRoutine(file, info.Id, info.Addresses)
 }

@@ -29,6 +29,12 @@ func CloseRemove(file *os.File) {
 	}
 }
 
+func PanicOnError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 func RecvData(decoder *gob.Decoder, file io.Writer) {
 	var buffer []byte
 

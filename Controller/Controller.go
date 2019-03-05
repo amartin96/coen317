@@ -39,9 +39,7 @@ func acceptClients(server net.Listener, numClients int) ([]net.Conn, []net.IP) {
 	for i := 0; i < numClients; i++ {
 		var err error
 		clients[i], err = server.Accept()
-		if err != nil {
-			panic(err)
-		}
+		common.PanicOnError(err)
 		addresses[i] = clients[i].RemoteAddr().(*net.TCPAddr).IP
 		fmt.Printf("Client %v connected\n", clients[i].RemoteAddr().String())
 	}
@@ -53,50 +51,50 @@ func acceptClients(server net.Listener, numClients int) ([]net.Conn, []net.IP) {
 
 func sendToClient(file io.Reader, conn io.Writer, info common.ClientInfo, size int64) {
 	encoder := gob.NewEncoder(conn)
-	if err := encoder.Encode(info); err != nil {
-		panic(err)
-	}
-
+	common.PanicOnError(encoder.Encode(info))
 	reader := io.LimitReader(file, size)
 	common.SendData(reader, encoder)
 	fmt.Printf("\n")
 }
 
 func main() {
-	// set up and parse command line arguments
-	argPort := flag.String("port", "", "listen port")
-	argFileName := flag.String("file", "", "file to be sorted")
-	argNumClients := flag.Int("clients", 0, "# clients")
+	// parse and validate command line arguments
+	var args struct {
+		Port       string
+		FileName   string
+		NumClients int
+	}
+	flag.StringVar(&args.Port, "port", "", "listen port")
+	flag.StringVar(&args.FileName, "file", "", "file to be sorted")
+	flag.IntVar(&args.NumClients, "clients", 0, "# clients")
 	flag.Parse()
-	if *argFileName == "" || *argNumClients == 0 || *argPort == "" {
+	if args.Port == "" || args.FileName == "" || args.NumClients == 0 {
 		fmt.Printf("Usage: %v -port <port> -file <file> -clients <clients>\n", os.Args[0])
 		return
 	}
-	if math.Ceil(float64(*argNumClients)) != math.Floor(float64(*argNumClients)) {
+	if math.Ceil(float64(args.NumClients)) != math.Floor(float64(args.NumClients)) {
 		fmt.Printf("Error: # clients must be a power of 2!\n")
 		return
 	}
 
 	// TODO just for testing
-	Merge.RandomIntFile(101, *argFileName, 255)
+	Merge.RandomIntFile(101, args.FileName, 255)
 	fmt.Printf("Generated file:\n")
-	Merge.PrintBinaryIntFile(*argFileName)
+	Merge.PrintBinaryIntFile(args.FileName)
 
 	// open the file and get its size
-	file, size := getFile(*argFileName)
+	file, size := getFile(args.FileName)
 	defer common.Close(file)
-	chunkSize := size / int64(*argNumClients) / 4 * 4 // if this doesn't divide cleanly, then the last client has extra work
+	chunkSize := size / int64(args.NumClients) / 4 * 4 // if this doesn't divide cleanly, then the last client has extra work
 	fmt.Printf("%v size: %v clientDataSize: %v\n", file.Name(), size, chunkSize)
 
 	// start listening, defer closing the listen socket
-	listener, err := net.Listen("tcp", ":"+*argPort)
-	if err != nil {
-		panic(err)
-	}
+	listener, err := net.Listen("tcp", ":"+args.Port)
+	common.PanicOnError(err)
 	defer common.Close(listener)
 
 	// accept connections from all clients
-	clients, addresses := acceptClients(listener, *argNumClients)
+	clients, addresses := acceptClients(listener, args.NumClients)
 
 	// send data to each client
 	for i, client := range clients {
@@ -116,14 +114,10 @@ func main() {
 
 	// receive the sorted data back from client 0
 	conn, err := listener.Accept()
-	if err != nil {
-		panic(err)
-	}
+	common.PanicOnError(err)
 	defer common.Close(conn)
 	outfile, err := os.Create("out")
-	if err != nil {
-		panic(err)
-	}
+	common.PanicOnError(err)
 	defer common.Close(outfile)
 	common.RecvData(gob.NewDecoder(conn), outfile)
 	fmt.Printf("\n")
