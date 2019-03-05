@@ -39,7 +39,7 @@ func intlog2(x int) uint {
 //			- receive data
 //			- merge
 //			- keep going
-func clientRoutine(file *os.File, id uint, addresses []net.IP) {
+func clientRoutine(file *os.File, id uint, addresses []net.IP, controllerAddr string) {
 	fmt.Printf("Sorting...\n")
 	Merge.Sorter(file.Name())
 	fmt.Printf("Sorted file:\n")
@@ -146,7 +146,7 @@ func clientRoutine(file *os.File, id uint, addresses []net.IP) {
 
 	// if execution makes it here, we are client 0 and everything has been merged
 	// send the complete results back to the controller
-	conn, err := net.Dial("tcp", "localhost:12345") // TODO get the actual controller address
+	conn, err := net.Dial("tcp", controllerAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -194,5 +194,5 @@ func main() {
 	fmt.Printf("\n")
 
 	// do everything else
-	clientRoutine(file, info.Id, info.Addresses)
+	clientRoutine(file, info.Id, info.Addresses, args.ControllerAddr)
 }
