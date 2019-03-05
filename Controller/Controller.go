@@ -78,7 +78,7 @@ func main() {
 	}
 
 	// TODO just for testing
-	Merge.RandomIntFile(101, *argFileName, 255)
+	Merge.RandomIntFile(100000, *argFileName, 2000000000)
 	fmt.Printf("Generated file:\n")
 	Merge.PrintBinaryIntFile(*argFileName)
 

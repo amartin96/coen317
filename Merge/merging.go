@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const maxMemory = 32
+const maxMemory = 1024
 
 // sort a file of integers on machines with maximum memory equal to maxMemory
 func Sorter(filename string) {
@@ -197,7 +197,7 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 		}
 
 		// write sorted block to file
-		if sortedIndex == 8 {
+		if sortedIndex == sortedSizeInt {
 			err = binary.Write(tempFile, binary.BigEndian, sorted)
 			checkError(err)
 			sortedIndex = 0
@@ -228,7 +228,7 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 		sortedIndex++
 
 		// write sorted block to file
-		if sortedIndex == 8 {
+		if sortedIndex == sortedSizeInt {
 			err = binary.Write(tempFile, binary.BigEndian, sorted)
 			checkError(err)
 			sortedIndex = 0
@@ -257,7 +257,7 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 		sortedIndex++
 
 		// write sorted block to file
-		if sortedIndex == 8 {
+		if sortedIndex == sortedSizeInt {
 			err = binary.Write(tempFile, binary.BigEndian, sorted)
 			checkError(err)
 			sortedIndex = 0
