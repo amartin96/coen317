@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"time"
 )
 
 const TEMPFILEPREFIX = "coen317"
@@ -55,15 +56,19 @@ func clientRoutine(file *os.File, id uint, addresses []string) {
 		if id%(1<<i) != 0 {
 			// use a self-invoking function literal so we can defer
 			func() {
+				addr := net.TCPAddr{IP: net.ParseIP(addresses[id-i]), Port: common.CLIENT_PORT_BASE + int(id-i)}
+
 				var conn net.Conn
 				for {
 					var err error
-					conn, err = net.Dial("tcp", addresses[id-i]+":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id-i)))
+					//conn, err = net.Dial("tcp", addresses[id-i]+":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id-i)))
+					conn, err = net.DialTCP("tcp", nil, &addr)
 					if err == nil {
 						break
 					}
 					fmt.Println(err)
 					fmt.Printf("Retrying...\n")
+					time.Sleep(time.Millisecond)
 				}
 				defer common.Close(conn)
 				if _, err := file.Seek(0, io.SeekStart); err != nil {
