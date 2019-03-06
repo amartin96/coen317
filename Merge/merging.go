@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"sort"
-	"time"
 )
 
 // sort a file of integers on machines with maximum memory equal to maxMemory
@@ -290,52 +288,6 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 	}
 
 	_ = tempFile.Close()
-}
-
-// writes blockCount blocks of maximum memory worth of random 32-bit integers with values between 0 and maxValue
-func RandomIntFileBlocks(blockCount int, filename string, maxValue int) {
-	// seed random number generator with time
-	rand.Seed(time.Now().UTC().UnixNano())
-
-	// writing memory for testing
-	f1, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0600)
-	common.PanicOnError(err)
-	currentData := make([]int32, common.BUFSIZE/4)
-
-	// write blockCount worth of blocks of maximum memory
-	for i := 0; i < blockCount; i++ {
-		// generate a random block of data
-		for j := 0; j < common.BUFSIZE/4; j++ {
-			x := int32(rand.Intn(maxValue))
-			currentData[j] = x
-		}
-		// write data to file
-		err := binary.Write(f1, binary.BigEndian, currentData)
-		common.PanicOnError(err)
-	}
-	err = f1.Close()
-	common.PanicOnError(err)
-}
-
-// writes intCount random ints with values between 0 and maxValue
-func RandomIntFile(intCount int, filename string, maxValue int) {
-	// seed random number generator with time
-	rand.Seed(time.Now().UTC().UnixNano())
-
-	// writing memory for testing
-	f1, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0600)
-	common.PanicOnError(err)
-
-	// generate a random block of data
-	for j := 0; j < intCount; j++ {
-		x := int32(rand.Intn(maxValue))
-
-		// write data to file
-		err := binary.Write(f1, binary.BigEndian, x)
-		common.PanicOnError(err)
-	}
-	err = f1.Close()
-	common.PanicOnError(err)
 }
 
 // prints binary file of 32-bit integers in blocks of size maximum memory

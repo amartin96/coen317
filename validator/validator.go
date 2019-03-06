@@ -13,7 +13,7 @@ func getMap(file io.Reader) map[int32]int {
 	retval := make(map[int32]int)
 	for {
 		var x int32
-		if err := binary.Read(file, binary.BigEndian, x); err == io.EOF {
+		if err := binary.Read(file, binary.BigEndian, &x); err == io.EOF {
 			break
 		} else if err != nil {
 			panic(err)

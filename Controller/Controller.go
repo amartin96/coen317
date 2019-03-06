@@ -77,11 +77,6 @@ func main() {
 		return
 	}
 
-	// TODO just for testing
-	Merge.RandomIntFile(100000, args.FileName, math.MaxInt32)
-	fmt.Printf("Generated file:\n")
-	Merge.PrintBinaryIntFile(args.FileName)
-
 	// open the file and get its size
 	file, size := getFile(args.FileName)
 	defer common.Close(file)
