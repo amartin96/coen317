@@ -16,6 +16,11 @@ import (
 
 const TEMPFILEPREFIX = "coen317"
 
+var args struct {
+	BasePort       int
+	ControllerAddr string
+}
+
 // computes: y = floor(log2(x))
 func intlog2(x int) uint {
 	y := uint(0)
@@ -39,7 +44,7 @@ func intlog2(x int) uint {
 //			- receive data
 //			- merge
 //			- keep going
-func clientRoutine(file *os.File, id uint, addresses []net.IP, controllerAddr string) {
+func clientRoutine(file *os.File, id uint, addresses []net.IP) {
 	fmt.Printf("Sorting...\n")
 	Merge.Sorter(file.Name())
 	fmt.Printf("Sorted file:\n")
@@ -52,7 +57,7 @@ func clientRoutine(file *os.File, id uint, addresses []net.IP, controllerAddr st
 		if id%(1<<i) != 0 {
 			// use a self-invoking function literal so we can defer
 			func() {
-				addr := net.TCPAddr{IP: addresses[id-i], Port: common.CLIENT_PORT_BASE + int(id-i)}
+				addr := net.TCPAddr{IP: addresses[id-i], Port: args.BasePort + int(id-i)}
 
 				var conn net.Conn
 				for {
@@ -81,7 +86,7 @@ func clientRoutine(file *os.File, id uint, addresses []net.IP, controllerAddr st
 		// otherwise, receive data from a host and merge it
 		// use a self-invoking function literal so we can defer
 		func() {
-			server, err := net.Listen("tcp", ":"+strconv.Itoa(common.CLIENT_PORT_BASE+int(id)))
+			server, err := net.Listen("tcp", ":"+strconv.Itoa(args.BasePort+int(id)))
 			if err != nil {
 				panic(err)
 			}
@@ -105,7 +110,7 @@ func clientRoutine(file *os.File, id uint, addresses []net.IP, controllerAddr st
 			size1 := stat.Size()
 
 			// receive
-			fmt.Printf("Receiving on port %v\n", strconv.Itoa(common.CLIENT_PORT_BASE+int(id)))
+			fmt.Printf("Receiving on port %v\n", strconv.Itoa(args.BasePort+int(id)))
 			common.RecvData(gob.NewDecoder(conn), file)
 			fmt.Printf("\nReceived file:\n")
 			Merge.PrintBinaryIntFile(file.Name())
@@ -146,7 +151,7 @@ func clientRoutine(file *os.File, id uint, addresses []net.IP, controllerAddr st
 
 	// if execution makes it here, we are client 0 and everything has been merged
 	// send the complete results back to the controller
-	conn, err := net.Dial("tcp", controllerAddr)
+	conn, err := net.Dial("tcp", args.ControllerAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -160,10 +165,6 @@ func clientRoutine(file *os.File, id uint, addresses []net.IP, controllerAddr st
 
 func main() {
 	// set up, parse, and validate args
-	var args struct {
-		BasePort       int
-		ControllerAddr string
-	}
 	flag.IntVar(&args.BasePort, "base_port", 0, "client port = base port + client id")
 	flag.StringVar(&args.ControllerAddr, "controller", "", "controller address")
 	flag.Parse()
@@ -194,5 +195,5 @@ func main() {
 	fmt.Printf("\n")
 
 	// do everything else
-	clientRoutine(file, info.Id, info.Addresses, args.ControllerAddr)
+	clientRoutine(file, info.Id, info.Addresses)
 }

@@ -8,7 +8,6 @@ import (
 	"os"
 )
 
-const CLIENT_PORT_BASE = 12346
 const BUFSIZE = 1024
 
 type ClientInfo struct {
