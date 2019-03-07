@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"strconv"
 	"time"
 )
 
@@ -22,8 +21,8 @@ var args struct {
 }
 
 // computes: y = floor(log2(x))
-func intlog2(x int) uint {
-	y := uint(0)
+func intlog2(x int) int {
+	y := 0
 	for {
 		x = x >> 1
 		if x == 0 {
@@ -34,133 +33,91 @@ func intlog2(x int) uint {
 	return y
 }
 
-// While not done:
-//	- sort my data
-//	- am I sending or receiving?
-// 		sending:
-//			- send data
-//			- done
-//		receiving:
-//			- receive data
-//			- merge
-//			- keep going
-func clientRoutine(file *os.File, id uint, addresses []net.IP) {
-	fmt.Printf("Sorting...\n")
+func sendToClient(file io.Reader, address *net.TCPAddr) {
+	// connect to the receiving client
+	// retry until successful
+	var conn net.Conn
+	for {
+		var err error
+		conn, err = net.DialTCP("tcp", nil, address)
+		if err == nil {
+			break
+		}
+		fmt.Println(err)
+		fmt.Printf("Failed to connect to %v. Retrying...\n", address.String())
+		time.Sleep(time.Millisecond)
+	}
+	defer common.Close(conn)
+	fmt.Printf("Sending to %v\n", address.String())
+	common.SendData(file, gob.NewEncoder(conn))
+}
+
+func recvFromClient(address *net.TCPAddr) *os.File {
+	// listen
+	server, err := net.ListenTCP("tcp", address)
+	common.PanicOnError(err)
+	defer common.Close(server)
+
+	// accept
+	conn, err := server.Accept()
+	common.PanicOnError(err)
+	defer common.Close(conn)
+
+	// create a file to receive into
+	file, err := ioutil.TempFile("", TEMPFILEPREFIX)
+	common.PanicOnError(err)
+
+	fmt.Printf("Receiving from %v\n", conn.RemoteAddr().String())
+	common.RecvData(gob.NewDecoder(conn), file)
+
+	_, err = file.Seek(0, io.SeekStart)
+	common.PanicOnError(err)
+
+	return file
+}
+
+func merge(file1 *os.File, file2 *os.File) {
+	stat, err := file1.Stat()
+	common.PanicOnError(err)
+	size1 := stat.Size()
+	stat, err = file2.Stat()
+	common.PanicOnError(err)
+	size2 := stat.Size()
+	file3, err := os.OpenFile(file1.Name(), os.O_WRONLY, 0600)
+	common.PanicOnError(err)
+	Merge.Merge(file1, file2, size1, size2, file3)
+	_, err = file1.Seek(0, io.SeekStart)
+	common.PanicOnError(err)
+}
+
+func clientRoutine(file *os.File, id int, addresses []net.IP) {
+	fmt.Printf("Sorting\n")
 	Merge.Sorter(file.Name())
-	fmt.Printf("Sorted file:\n")
-	Merge.PrintBinaryIntFile(file.Name())
-	fmt.Printf("\n")
 
-	for i := uint(1); i <= intlog2(len(addresses)); i++ {
-
+	for i := 1; i <= intlog2(len(addresses)); i++ {
 		// if id mod 2^i != 0, send data to the next host
-		if id%(1<<i) != 0 {
-			// use a self-invoking function literal so we can defer
-			func() {
-				addr := net.TCPAddr{IP: addresses[id-i], Port: args.BasePort + int(id-i)}
-
-				var conn net.Conn
-				for {
-					var err error
-					conn, err = net.DialTCP("tcp", nil, &addr)
-					if err == nil {
-						break
-					}
-					fmt.Println(err)
-					fmt.Printf("Retrying...\n")
-					time.Sleep(time.Millisecond)
-				}
-				defer common.Close(conn)
-				if _, err := file.Seek(0, io.SeekStart); err != nil {
-					panic(err)
-				}
-				fmt.Printf("Sending to %v\n", conn.RemoteAddr().String())
-				common.SendData(file, gob.NewEncoder(conn))
-				fmt.Printf("\n")
-			}()
-
-			// once we send our data to another host, we're done
+		if id%(1<<uint(i)) != 0 {
+			sendToClient(file, &net.TCPAddr{IP: addresses[id-i], Port: args.BasePort + id - i})
 			return
 		}
 
 		// otherwise, receive data from a host and merge it
-		// use a self-invoking function literal so we can defer
-		func() {
-			server, err := net.Listen("tcp", ":"+strconv.Itoa(args.BasePort+int(id)))
-			if err != nil {
-				panic(err)
-			}
-			defer common.Close(server)
+		file2 := recvFromClient(&net.TCPAddr{Port: args.BasePort + id})
+		merge(file, file2)
+		common.Close(file2) // TODO defer this somehow
 
-			conn, err := server.Accept()
-			if err != nil {
-				panic(err)
-			}
-			defer common.Close(conn)
-
-			if _, err := file.Seek(0, io.SeekEnd); err != nil {
-				panic(err)
-			}
-
-			// get file size before receiving
-			stat, err := file.Stat()
-			if err != nil {
-				panic(err)
-			}
-			size1 := stat.Size()
-
-			// receive
-			fmt.Printf("Receiving on port %v\n", strconv.Itoa(args.BasePort+int(id)))
-			common.RecvData(gob.NewDecoder(conn), file)
-			fmt.Printf("\nReceived file:\n")
-			Merge.PrintBinaryIntFile(file.Name())
-			fmt.Printf("\n")
-
-			// get file size after receiving, calculate difference -> size of 2nd half
-			stat, err = file.Stat()
-			if err != nil {
-				panic(err)
-			}
-			size2 := stat.Size() - size1
-
-			if _, err := file.Seek(0, io.SeekStart); err != nil {
-				panic(err)
-			}
-			file2, err := os.Open(file.Name())
-			if err != nil {
-				panic(err)
-			}
-			defer common.Close(file2)
-			if _, err := file2.Seek(size1, io.SeekStart); err != nil {
-				panic(err)
-			}
-			file3, err := os.OpenFile(file.Name(), os.O_WRONLY, 0600)
-			if err != nil {
-				panic(err)
-			}
-			defer common.Close(file3)
-
-			// merge what we have with what we just received
-			fmt.Printf("Merging...\tsize1: %v\tsize2: %v\n", size1, size2)
-			Merge.Merge(file, file2, size1, size2, file3)
-			fmt.Printf("Merged file:\n")
-			Merge.PrintBinaryIntFile(file.Name())
-		}()
-		fmt.Printf("\n")
+		_, err := file.Seek(0, io.SeekStart)
+		common.PanicOnError(err)
 	}
 
 	// if execution makes it here, we are client 0 and everything has been merged
 	// send the complete results back to the controller
 	conn, err := net.Dial("tcp", args.ControllerAddr)
-	if err != nil {
-		panic(err)
-	}
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		panic(err)
-	}
+	common.PanicOnError(err)
+	_, err = file.Seek(0, io.SeekStart)
+	common.PanicOnError(err)
 	fmt.Printf("Sending to controller\n")
 	common.SendData(file, gob.NewEncoder(conn))
-	fmt.Printf("\n")
 }
 
 func main() {
@@ -188,11 +145,10 @@ func main() {
 	defer common.CloseRemove(file)
 
 	// receive data from controller into file
-	fmt.Printf("Receiving from controller...\n")
+	fmt.Printf("Receiving from controller\n")
 	common.RecvData(decoder, file)
-	fmt.Printf("\nFile:\n")
-	Merge.PrintBinaryIntFile(file.Name())
-	fmt.Printf("\n")
+	_, err = file.Seek(0, io.SeekStart)
+	common.PanicOnError(err)
 
 	// do everything else
 	clientRoutine(file, info.Id, info.Addresses)

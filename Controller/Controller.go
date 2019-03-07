@@ -1,7 +1,6 @@
 package main
 
 import (
-	"coen317/Merge"
 	"coen317/common"
 	"encoding/gob"
 	"flag"
@@ -103,7 +102,7 @@ func main() {
 				clientDataSize = size - chunkSize*int64(len(clients)-1)
 			}
 			fmt.Printf("clientDataSize %v: %v\n", i, clientDataSize)
-			sendToClient(file, client, common.ClientInfo{Id: uint(i), Addresses: addresses}, clientDataSize)
+			sendToClient(file, client, common.ClientInfo{Id: i, Addresses: addresses}, clientDataSize)
 		}()
 	}
 
@@ -115,8 +114,4 @@ func main() {
 	common.PanicOnError(err)
 	defer common.Close(outfile)
 	common.RecvData(gob.NewDecoder(conn), outfile)
-	fmt.Printf("\n")
-
-	fmt.Printf("Sorted file:\n")
-	Merge.PrintBinaryIntFile(outfile.Name())
 }

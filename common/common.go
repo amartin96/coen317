@@ -2,7 +2,6 @@ package common
 
 import (
 	"encoding/gob"
-	"fmt"
 	"io"
 	"net"
 	"os"
@@ -11,7 +10,7 @@ import (
 const BUFSIZE = 1024
 
 type ClientInfo struct {
-	Id        uint
+	Id        int
 	Addresses []net.IP
 }
 
@@ -44,8 +43,6 @@ func RecvData(decoder *gob.Decoder, file io.Writer) {
 			panic(err)
 		}
 
-		fmt.Printf("received %v\n", buffer)
-
 		if _, err := file.Write(buffer); err != nil {
 			panic(err)
 		}
@@ -62,8 +59,6 @@ func SendData(file io.Reader, encoder *gob.Encoder) {
 		} else if err != nil {
 			panic(err)
 		}
-
-		fmt.Printf("sending %v\n", buffer[:n])
 
 		if err := encoder.Encode(buffer[:n]); err != nil {
 			panic(err)
