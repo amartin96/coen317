@@ -3,7 +3,6 @@ package Merge
 import (
 	"coen317/common"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -11,7 +10,7 @@ import (
 )
 
 // sort a file of integers on machines with maximum memory equal to maxMemory
-func Sorter(filename string) {
+func Sorter(filename string, bufsize int) {
 	f1, err := os.OpenFile(filename, os.O_RDWR, 0600)
 	common.PanicOnError(err)
 	f2, err := os.OpenFile(filename, os.O_RDWR, 0600)
@@ -21,8 +20,8 @@ func Sorter(filename string) {
 	fInfo, err := f1.Stat()
 	common.PanicOnError(err)
 	fileSize := fInfo.Size()
-	var blockSizeBinary int64 = common.BUFSIZE
-	var blockSizeInt int64 = common.BUFSIZE / 4
+	blockSizeBinary := int64(bufsize)
+	blockSizeInt := int64(bufsize / 4)
 
 	// perform quicksort on blocks of the maximum memory size
 	buffer := make([]int32, blockSizeInt)
@@ -62,7 +61,7 @@ func Sorter(filename string) {
 	}
 
 	// do the merging
-	blockSizeBinary = common.BUFSIZE
+	blockSizeBinary = int64(bufsize)
 	var blockCount int64
 	var curBlock int64
 	var block1Size int64
@@ -92,7 +91,7 @@ func Sorter(filename string) {
 			}
 
 			// pass limit readers to have content merged together
-			Merge(limitR1, limitR2, block1Size, block2Size, f3)
+			Merge(limitR1, limitR2, block1Size, block2Size, f3, bufsize)
 
 			// seek file pointers to be point at next blocks to be merged
 			_, err := f1.Seek(blockSizeBinary, 1)
@@ -109,14 +108,14 @@ func Sorter(filename string) {
 }
 
 // perform actual merging of blocks
-func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) {
+func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer, bufsize int) {
 	// buffers for reading in the binary
-	buffer1SizeInt := common.BUFSIZE / 8
-	buffer1SizeBinary := common.BUFSIZE / 2
-	buffer2SizeInt := common.BUFSIZE / 8
-	buffer2SizeBinary := common.BUFSIZE / 2
-	sortedSizeInt := common.BUFSIZE / 4
-	sortedSizeBinary := common.BUFSIZE
+	buffer1SizeInt := bufsize / 8
+	buffer1SizeBinary := bufsize / 2
+	buffer2SizeInt := bufsize / 8
+	buffer2SizeBinary := bufsize / 2
+	sortedSizeInt := bufsize / 4
+	sortedSizeBinary := bufsize
 	buffer1 := make([]int32, buffer1SizeInt)
 	buffer2 := make([]int32, buffer2SizeInt)
 	sorted := make([]int32, sortedSizeInt)
@@ -288,35 +287,4 @@ func Merge(r1 io.Reader, r2 io.Reader, r1Size int64, r2Size int64, f io.Writer) 
 	}
 
 	_ = tempFile.Close()
-}
-
-// prints binary file of 32-bit integers in blocks of size maximum memory
-func PrintBinaryIntFile(filename string) {
-	f1, err := os.Open(filename)
-	common.PanicOnError(err)
-	fInfo, err := f1.Stat()
-	common.PanicOnError(err)
-	fileSize := fInfo.Size()
-	bytesRead := int64(0)
-
-	bufferSize := int64(common.BUFSIZE)
-	buffer := make([]int32, bufferSize/4)
-	if (fileSize - bytesRead) < bufferSize {
-		bufferSize = fileSize - bytesRead
-		buffer = buffer[0 : bufferSize/4]
-	}
-	err = binary.Read(f1, binary.BigEndian, buffer)
-	bytesRead += bufferSize
-	fmt.Println(buffer)
-	for bytesRead != fileSize {
-		if (fileSize - bytesRead) < bufferSize {
-			bufferSize = fileSize - bytesRead
-			buffer = buffer[0 : bufferSize/4]
-		}
-		err = binary.Read(f1, binary.BigEndian, buffer)
-		fmt.Println(buffer)
-		bytesRead += bufferSize
-	}
-	err = f1.Close()
-	common.PanicOnError(err)
 }

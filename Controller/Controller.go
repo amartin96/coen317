@@ -12,6 +12,14 @@ import (
 	"time"
 )
 
+var args struct {
+	Port        int
+	InFileName  string
+	OutFileName string
+	NumClients  int
+	Bufsize     int
+}
+
 func acceptClients(server net.Listener, numClients int) ([]net.Conn, []net.IP) {
 	clients := make([]net.Conn, numClients)
 	addresses := make([]net.IP, numClients)
@@ -33,7 +41,7 @@ func sendToClientAndClose(reader io.Reader, writer io.WriteCloser, info common.C
 	defer common.Close(writer)
 	encoder := gob.NewEncoder(writer)
 	common.PanicOnError(encoder.Encode(info))
-	common.SendData(reader, encoder)
+	common.SendData(reader, encoder, args.Bufsize)
 }
 
 func controllerRoutine(infile io.Reader, outfile io.Writer, port int, numClients int, sizePerClient int64) {
@@ -68,23 +76,22 @@ func controllerRoutine(infile io.Reader, outfile io.Writer, port int, numClients
 
 func main() {
 	// parse and validate command line arguments
-	var args struct {
-		Port        int
-		InFileName  string
-		OutFileName string
-		NumClients  int
-	}
 	flag.IntVar(&args.Port, "port", 0, "listen port")
 	flag.StringVar(&args.InFileName, "in", "", "file to be sorted")
 	flag.StringVar(&args.OutFileName, "out", "", "sorted results")
 	flag.IntVar(&args.NumClients, "clients", 0, "# clients")
+	flag.IntVar(&args.Bufsize, "buffer", 0, "buffer size")
 	flag.Parse()
-	if args.Port == 0 || args.InFileName == "" || args.OutFileName == "" || args.NumClients == 0 {
-		fmt.Printf("Usage: %v -port <port> -file <file> -clients <clients>\n", os.Args[0])
+	if args.Port == 0 || args.InFileName == "" || args.OutFileName == "" || args.NumClients == 0 || args.Bufsize == 0 {
+		fmt.Printf("Usage: %v -port <port> -file <file> -clients <clients> -buffer <buffer size>\n", os.Args[0])
 		return
 	}
 	if math.Ceil(float64(args.NumClients)) != math.Floor(float64(args.NumClients)) {
 		fmt.Printf("Error: # clients must be a power of 2!\n")
+		return
+	}
+	if args.Bufsize%4 != 0 {
+		fmt.Printf("Error: buffer size must be a multiple of 4 bytes!\n")
 		return
 	}
 

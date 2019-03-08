@@ -7,8 +7,6 @@ import (
 	"os"
 )
 
-const BUFSIZE = 1024
-
 type ClientInfo struct {
 	Id        int
 	Addresses []net.IP
@@ -49,8 +47,8 @@ func RecvData(decoder *gob.Decoder, file io.Writer) {
 	}
 }
 
-func SendData(file io.Reader, encoder *gob.Encoder) {
-	buffer := make([]byte, BUFSIZE)
+func SendData(file io.Reader, encoder *gob.Encoder, bufsize int) {
+	buffer := make([]byte, bufsize)
 
 	for {
 		n, err := file.Read(buffer)

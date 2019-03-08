@@ -18,6 +18,7 @@ const TEMPFILEPREFIX = "coen317"
 var args struct {
 	BasePort       int
 	ControllerAddr string
+	Bufsize        int
 }
 
 // computes: y = floor(log2(x))
@@ -49,7 +50,7 @@ func sendToClient(file io.Reader, address *net.TCPAddr) {
 	}
 	defer common.Close(conn)
 	fmt.Printf("Sending to %v\n", address.String())
-	common.SendData(file, gob.NewEncoder(conn))
+	common.SendData(file, gob.NewEncoder(conn), args.Bufsize)
 }
 
 func recvFromClient(address *net.TCPAddr) *os.File {
@@ -85,14 +86,14 @@ func merge(file1 *os.File, file2 *os.File) {
 	size2 := stat.Size()
 	file3, err := os.OpenFile(file1.Name(), os.O_WRONLY, 0600)
 	common.PanicOnError(err)
-	Merge.Merge(file1, file2, size1, size2, file3)
+	Merge.Merge(file1, file2, size1, size2, file3, args.Bufsize)
 	_, err = file1.Seek(0, io.SeekStart)
 	common.PanicOnError(err)
 }
 
 func clientRoutine(file *os.File, id int, addresses []net.IP) {
 	fmt.Printf("Sorting\n")
-	Merge.Sorter(file.Name())
+	Merge.Sorter(file.Name(), args.Bufsize)
 
 	for i := 1; i <= intlog2(len(addresses)); i++ {
 		// if id mod 2^i != 0, send data to the next host
@@ -117,16 +118,17 @@ func clientRoutine(file *os.File, id int, addresses []net.IP) {
 	_, err = file.Seek(0, io.SeekStart)
 	common.PanicOnError(err)
 	fmt.Printf("Sending to controller\n")
-	common.SendData(file, gob.NewEncoder(conn))
+	common.SendData(file, gob.NewEncoder(conn), args.Bufsize)
 }
 
 func main() {
 	// set up, parse, and validate args
 	flag.IntVar(&args.BasePort, "base_port", 0, "client port = base port + client id")
 	flag.StringVar(&args.ControllerAddr, "controller", "", "controller address")
+	flag.IntVar(&args.Bufsize, "buffer", 0, "buffer size")
 	flag.Parse()
-	if args.BasePort == 0 || args.ControllerAddr == "" {
-		fmt.Printf("Usage: %v -base_port <base port> -controller <controller address>\n", os.Args[0])
+	if args.BasePort == 0 || args.ControllerAddr == "" || args.Bufsize == 0 {
+		fmt.Printf("Usage: %v -base_port <base port> -controller <controller address> -buffer <buffer size>\n", os.Args[0])
 		return
 	}
 
