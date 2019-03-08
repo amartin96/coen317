@@ -127,6 +127,7 @@ func main() {
 	flag.Parse()
 	if args.BasePort == 0 || args.ControllerAddr == "" {
 		fmt.Printf("Usage: %v -base_port <base port> -controller <controller address>\n", os.Args[0])
+		return
 	}
 
 	// connect to the controller
