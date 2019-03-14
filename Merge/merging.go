@@ -13,10 +13,13 @@ import (
 func Sorter(filename string, bufsize int) {
 	f1, err := os.OpenFile(filename, os.O_RDWR, 0600)
 	common.PanicOnError(err)
+	defer common.Close(f1)
 	f2, err := os.OpenFile(filename, os.O_RDWR, 0600)
 	common.PanicOnError(err)
+	defer common.Close(f2)
 	f3, err := os.OpenFile(filename, os.O_RDWR, 0600)
 	common.PanicOnError(err)
+	defer common.Close(f3)
 	fInfo, err := f1.Stat()
 	common.PanicOnError(err)
 	fileSize := fInfo.Size()
