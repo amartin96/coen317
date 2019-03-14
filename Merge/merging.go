@@ -1,8 +1,8 @@
 package Merge
 
 import (
-	"coen317/common"
 	"encoding/binary"
+	"github.com/amartin96/coen317/common"
 	"io"
 	"io/ioutil"
 	"os"

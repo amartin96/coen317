@@ -1,11 +1,11 @@
 package main
 
 import (
-	"coen317/Merge"
-	"coen317/common"
 	"encoding/gob"
 	"flag"
 	"fmt"
+	"github.com/amartin96/coen317/Merge"
+	"github.com/amartin96/coen317/common"
 	"io"
 	"io/ioutil"
 	"net"

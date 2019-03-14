@@ -1,10 +1,10 @@
 package main
 
 import (
-	"coen317/common"
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"github.com/amartin96/coen317/common"
 	"math/rand"
 	"os"
 	"time"

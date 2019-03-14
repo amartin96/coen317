@@ -1,9 +1,9 @@
 package main
 
 import (
-	"coen317/common"
 	"encoding/binary"
 	"fmt"
+	"github.com/amartin96/coen317/common"
 	"io"
 	"os"
 )
