@@ -44,14 +44,14 @@ func sendToClientAndClose(reader io.Reader, writer io.WriteCloser, info common.C
 	common.SendData(reader, encoder, args.Bufsize)
 }
 
-func controllerRoutine(infile io.Reader, outfile io.Writer, port int, numClients int, sizePerClient int64) {
+func controllerRoutine(infile io.Reader, outfile io.Writer, sizePerClient int64) {
 	// listen on the specified port
-	listener, err := net.ListenTCP("tcp", &net.TCPAddr{Port: port})
+	listener, err := net.ListenTCP("tcp", &net.TCPAddr{Port: args.Port})
 	common.PanicOnError(err)
 	defer common.Close(listener)
 
 	// accept connections from all clients
-	clients, addresses := acceptClients(listener, numClients)
+	clients, addresses := acceptClients(listener, args.NumClients)
 
 	// start timing
 	timestamp := time.Now()
@@ -83,7 +83,7 @@ func main() {
 	flag.IntVar(&args.Bufsize, "buffer", 0, "buffer size")
 	flag.Parse()
 	if args.Port == 0 || args.InFileName == "" || args.OutFileName == "" || args.NumClients == 0 || args.Bufsize == 0 {
-		fmt.Printf("Usage: %v -port <port> -file <file> -clients <clients> -buffer <buffer size>\n", os.Args[0])
+		fmt.Printf("Usage: %v -port <port> -in <infile> -out <outfile> -clients <clients> -buffer <buffer size>\n", os.Args[0])
 		return
 	}
 	if math.Ceil(float64(args.NumClients)) != math.Floor(float64(args.NumClients)) {
@@ -107,5 +107,5 @@ func main() {
 	outfile, err := os.Create(args.OutFileName)
 	common.PanicOnError(err)
 
-	controllerRoutine(file, outfile, args.Port, args.NumClients, sizePerClient)
+	controllerRoutine(file, outfile, sizePerClient)
 }
